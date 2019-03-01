@@ -3,7 +3,7 @@ $ cat .gitignore
 /dist
 /documentation
 /coverage
-
+/.idea
 *.log
 *.tgz
 /src/models/*.js.map

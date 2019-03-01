@@ -103,9 +103,20 @@ export class OidcSecurityCheckSession {
                         if (session_state) {
                             this.outstandingMessages++;
                             this.sessionIframe.contentWindow.postMessage(clientId + ' ' + session_state, this.authConfiguration.stsServer);
+                            // after sending three messages with no response, fail.
+                            if (this.outstandingMessages > 3) {
+                                this.loggerService.logError(
+                                    `OidcSecurityCheckSession not receiving check session response messages. Outstanding messages: ${
+                                        this.outstandingMessages
+                                        }. Server unreachable?`
+                                );
+                                // server might not answer simply because it doesn't implement check session, in this case just stop the timer
+                            }
+
+                            this.scheduledHeartBeat = setTimeout(_pollServerSessionRecur, this.heartBeatInterval);
                         } else {
                             this.loggerService.logDebug('OidcSecurityCheckSession pollServerSession session_state is blank');
-                            this._onCheckSessionChanged.next();
+                            // this means user is not authenticated and we can't query check-session iframe to know anything so stand by
                         }
                     } else {
                         this.loggerService.logWarning('OidcSecurityCheckSession pollServerSession sessionIframe does not exist');
@@ -113,18 +124,6 @@ export class OidcSecurityCheckSession {
                         this.loggerService.logDebug(this.sessionIframe);
                         // this.init();
                     }
-
-                    // after sending three messages with no response, fail.
-                    if (this.outstandingMessages > 3) {
-                        this.loggerService.logError(
-                            `OidcSecurityCheckSession not receiving check session response messages. Outstanding messages: ${
-                                this.outstandingMessages
-                            }. Server unreachable?`
-                        );
-                        this._onCheckSessionChanged.next();
-                    }
-
-                    this.scheduledHeartBeat = setTimeout(_pollServerSessionRecur, this.heartBeatInterval);
                 });
         };
 
@@ -141,10 +140,11 @@ export class OidcSecurityCheckSession {
 
     private messageHandler(e: any) {
         this.outstandingMessages = 0;
-        if (this.sessionIframe && e.origin === this.authConfiguration.stsServer && e.source === this.sessionIframe.contentWindow) {
+        if (this.sessionIframe && this.authConfiguration.stsServer.indexOf(e.origin) === 0 && e.source === this.sessionIframe.contentWindow) {
             if (e.data === 'error') {
                 this.loggerService.logWarning('error from checksession messageHandler');
             } else if (e.data === 'changed') {
+                // changed means the user has disconnected, it might be that a new one is connected
                 this._onCheckSessionChanged.next();
             } else {
                 this.loggerService.logDebug(e.data + ' from checksession messageHandler');

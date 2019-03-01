@@ -89,6 +89,7 @@ export class OidcSecurityService {
                     filter((isAuthorized: boolean) => isAuthorized),
                     take(1),
                     tap(() => this.loggerService.logDebug('IsAuthorizedRace: Existing token is still authorized.')),
+                    // TODO race here make a race between the 3 ma be a flatmap is missing
                     race(
                         this._onAuthorizationResult.pipe(
                             take(1),
@@ -107,6 +108,7 @@ export class OidcSecurityService {
                 if (this.oidcSecurityCommon.authNonce === '' || this.oidcSecurityCommon.authNonce === undefined) {
                     // login not running, or a second silent renew, user must login first before this will work.
                     this.loggerService.logDebug('Silent Renew or login not running, try to refresh the session');
+                    // TODO subscribe missing here?
                     this.refreshSession();
                 }
 
@@ -136,8 +138,33 @@ export class OidcSecurityService {
 
         this.oidcSecurityCheckSession.onCheckSessionChanged.subscribe(() => {
             this.loggerService.logDebug('onCheckSessionChanged');
-            this.checkSessionChanged = true;
-            this._onCheckSessionChanged.next(this.checkSessionChanged);
+            /**
+             * When the RP detects a session state change, it SHOULD first try a prompt=none request within an iframe to obtain a new ID Token and session state, sending the old ID Token as the id_token_hint.
+             * If the RP receives an ID token for the same End-User, it SHOULD simply update the value of the session state.
+             * If it doesn't receive an ID token or receives an ID token for another End-User, then it needs to handle this case as a logout for the original End-User.
+             */
+            const oldUserDataValue = this._userData.value;
+            // FIXME using refreshSession for know with auth code instead id_token_hint
+            this.refreshSession().subscribe(() => {
+                // TODO iframe is now loaded and we wait for new UserData to be calculated (flatMap on eventEmitter to find) and inside
+                // this._userData.value may be undefined
+                if (this._userData.value !== oldUserDataValue) {
+                    // if new user we say that user changed and there is a new user
+                    // if false, means user changes and there is no one authenticated
+                    if (this._userData.value === undefined) {
+                        // for good measure and to make sure that everything is cleared
+                        this.resetAuthorizationData(false);
+                        this._onCheckSessionChanged.next(false);
+                        // TODO make sure (maybe somewhere else/in two parts) that checkSession is disabled until (other) user authenticated
+                    } else {
+                        // TODO recalculate userData...
+                        this._onCheckSessionChanged.next(true);
+                        // TODO enable (maybe somewhere else) check session
+                    }
+                }
+            });
+            // this means that previous user has disconnected (may be another one is connected)
+            // first we clear user data
         });
 
         const userData = this.oidcSecurityCommon.userData;
@@ -693,6 +720,8 @@ export class OidcSecurityService {
         }
     }
 
+    // TODO understand why there is a boolean that does nothing if false
+    // backward compatibility ?
     resetAuthorizationData(isRenewProcess: boolean): void {
         if (!isRenewProcess) {
             if (this.authConfiguration.auto_userinfo) {
