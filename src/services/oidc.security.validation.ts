@@ -162,9 +162,15 @@ export class OidcSecurityValidation {
 
     // id_token C9: The value of the nonce Claim MUST be checked to verify that it is the same value as the one
     // that was sent in the Authentication Request.The Client SHOULD check the nonce value for replay attacks.
-    // The precise method for detecting replay attacks is Client specific.
+    // The precise method for detecting replay attacks is Client specific. (This specific or implicit flow)
+    // A more general description of the nonce is:
+    // String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
+    // The value is passed through unmodified from the Authentication Request to the ID Token. If present in the ID Token, Clients MUST verify that the nonce Claim Value is equal to the value of the nonce parameter sent in the Authentication Request.
+    // If present in the Authentication Request, Authorization Servers MUST include a nonce Claim in the ID Token with the Claim Value being the nonce value sent in the Authentication Request.
+    // Authorization Servers SHOULD perform no other processing on nonce values used. The nonce value is a case sensitive string.
+    // To summarize: if we send a nonce we save it and check if it's present in the response (id_token)
     validate_id_token_nonce(dataIdToken: any, local_nonce: any): boolean {
-        if (dataIdToken.nonce !== local_nonce) {
+        if (local_nonce && dataIdToken.nonce !== local_nonce) {
             this.loggerService.logDebug('Validate_id_token_nonce failed, dataIdToken.nonce: ' + dataIdToken.nonce + ' local_nonce:' + local_nonce);
             return false;
         }
@@ -212,7 +218,8 @@ export class OidcSecurityValidation {
     }
 
     validateStateFromHashCallback(state: any, local_state: any): boolean {
-        if ((state as string) !== (local_state as string)) {
+        // if state not sent in request it's not required in response
+        if (local_state && (state as string) !== (local_state as string)) {
             this.loggerService.logDebug('ValidateStateFromHashCallback failed, state: ' + state + ' local_state:' + local_state);
             return false;
         }

@@ -141,7 +141,7 @@ export class OidcSecurityCheckSession {
 
     private messageHandler(e: any) {
         this.outstandingMessages = 0;
-        if (this.sessionIframe && e.origin === this.authConfiguration.stsServer && e.source === this.sessionIframe.contentWindow) {
+        if (this.sessionIframe && this.authConfiguration.stsServer.startsWith(e.origin) && e.source === this.sessionIframe.contentWindow) {
             if (e.data === 'error') {
                 this.loggerService.logWarning('error from checksession messageHandler');
             } else if (e.data === 'changed') {

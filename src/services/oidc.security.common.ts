@@ -35,6 +35,16 @@ export class OidcSecurityCommon {
         this.store(this.storage_id_token, value);
     }
 
+    private storage_refresh_token = 'authorizationDataRefreshToken';
+
+    public get refreshToken(): string {
+        return this.retrieve(this.storage_refresh_token) || '';
+    }
+
+    public set refreshToken(value: string) {
+        this.store(this.storage_refresh_token, value);
+    }
+
     private storage_is_authorized = '_isAuthorized';
 
     public get isAuthorized(): boolean | undefined {
